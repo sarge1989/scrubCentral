@@ -1,0 +1,21 @@
+# TODO: DELETE IF NOT USING CLERK AUTHENTICATION
+# Copy this file to .dev.vars and add your actual Clerk keys
+# Get these from https://dashboard.clerk.com
+
+# Clerk Secret Key (for server-side operations)
+CLERK_SECRET_KEY=sk_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+# Note: VITE_CLERK_PUBLISHABLE_KEY goes in wrangler.jsonc since it's public
+
+# TODO: DELETE IF NOT USING STRIPE PAYMENTS
+# Get these from https://dashboard.stripe.com
+
+# Stripe Secret Key (for server-side operations)
+STRIPE_SECRET_KEY=sk_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+# Stripe Webhook Secret (for verifying webhooks)
+# Get this from: https://dashboard.stripe.com/webhooks
+# After creating a webhook endpoint, copy the signing secret
+STRIPE_WEBHOOK_SECRET=whsec_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+# Note: VITE_STRIPE_PUBLISHABLE_KEY goes in wrangler.jsonc since it's public
