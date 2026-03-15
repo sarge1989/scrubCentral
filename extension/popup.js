@@ -12,12 +12,13 @@ const formView = document.getElementById("formView");
 const successView = document.getElementById("successView");
 const successSub = document.getElementById("successSub");
 const viewDiffBtn = document.getElementById("viewDiffBtn");
+const openOriginalBtn = document.getElementById("openOriginalBtn");
 const undoBtn = document.getElementById("undoBtn");
 
 let mode = "simple";
 let currentUrl = "";
 let currentTabId = null;
-let lastResultId = null;
+let highlightsOn = false;
 
 // Show current tab URL
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -103,7 +104,7 @@ function extractTextNodesFromDOM() {
   return nodes;
 }
 
-/** Content script: replace text nodes in the live DOM. Saves originals for undo. */
+/** Content script: replace text nodes in the live DOM. Wraps changed nodes in spans for highlighting. Saves originals for undo. */
 function applyTransformedNodes(nodeMap) {
   const SKIP = new Set([
     "NAV", "HEADER", "FOOTER", "SCRIPT", "STYLE", "NOSCRIPT", "SVG",
@@ -115,17 +116,22 @@ function applyTransformedNodes(nodeMap) {
   let nextId = 0;
   function walk(el) {
     if (SKIP.has(el.tagName)) return;
-    for (const child of el.childNodes) {
+    const children = Array.from(el.childNodes);
+    for (const child of children) {
       if (child.nodeType === 3) {
         const text = child.textContent.trim();
         if (text.length > 0 && !FRAMEWORK_JUNK.has(text)) {
           const id = nextId++;
           if (nodeMap[id] !== undefined) {
-            originals[id] = child.textContent;
             const raw = child.textContent;
+            originals[id] = raw;
             const leading = (raw.match(/^\s*/) || [""])[0];
             const trailing = (raw.match(/\s*$/) || [""])[0];
-            child.textContent = leading + nodeMap[id] + trailing;
+            const span = document.createElement("span");
+            span.className = "scrubcentral-changed";
+            span.dataset.scrubcentralOriginal = raw;
+            span.textContent = leading + nodeMap[id] + trailing;
+            child.parentNode.replaceChild(span, child);
           }
         }
       } else if (child.nodeType === 1) walk(child);
@@ -135,30 +141,30 @@ function applyTransformedNodes(nodeMap) {
   window.__scrubcentralOriginals = originals;
 }
 
-/** Content script: undo transformation. */
-function restoreOriginalNodes() {
-  const originals = window.__scrubcentralOriginals;
-  if (!originals) return;
-  const SKIP = new Set([
-    "NAV", "HEADER", "FOOTER", "SCRIPT", "STYLE", "NOSCRIPT", "SVG",
-    "IMG", "VIDEO", "AUDIO", "IFRAME", "FORM", "INPUT", "SELECT",
-    "TEXTAREA", "BUTTON", "CANVAS",
-  ]);
-  const FRAMEWORK_JUNK = new Set(["false", "true", "null", "undefined", "NaN"]);
-  let nextId = 0;
-  function walk(el) {
-    if (SKIP.has(el.tagName)) return;
-    for (const child of el.childNodes) {
-      if (child.nodeType === 3) {
-        const text = child.textContent.trim();
-        if (text.length > 0 && !FRAMEWORK_JUNK.has(text)) {
-          const id = nextId++;
-          if (originals[id] !== undefined) child.textContent = originals[id];
-        }
-      } else if (child.nodeType === 1) walk(child);
+/** Content script: toggle highlight on changed nodes. */
+function toggleHighlights(on) {
+  const STYLE_ID = "scrubcentral-highlight-style";
+  let style = document.getElementById(STYLE_ID);
+  if (on) {
+    if (!style) {
+      style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = ".scrubcentral-changed { background-color: #fef9c3 !important; }";
+      document.head.appendChild(style);
     }
+  } else {
+    if (style) style.remove();
   }
-  walk(document.documentElement);
+}
+
+/** Content script: undo transformation. Unwraps spans back to original text nodes. */
+function restoreOriginalNodes() {
+  const style = document.getElementById("scrubcentral-highlight-style");
+  if (style) style.remove();
+  for (const span of document.querySelectorAll("span.scrubcentral-changed")) {
+    const textNode = document.createTextNode(span.dataset.scrubcentralOriginal || span.textContent);
+    span.parentNode.replaceChild(textNode, span);
+  }
   delete window.__scrubcentralOriginals;
 }
 
@@ -174,20 +180,13 @@ transformBtn.addEventListener("click", async () => {
   setLoading(true);
 
   try {
-    // 1. Grab original HTML + extract text nodes in parallel
-    let originalHtml, textNodes;
+    // 1. Extract text nodes from the live DOM
+    let textNodes;
     try {
-      const [htmlResult, extractResult] = await Promise.all([
-        chrome.scripting.executeScript({
-          target: { tabId: currentTabId },
-          func: () => document.documentElement.outerHTML,
-        }),
-        chrome.scripting.executeScript({
-          target: { tabId: currentTabId },
-          func: extractTextNodesFromDOM,
-        }),
-      ]);
-      originalHtml = htmlResult?.[0]?.result;
+      const extractResult = await chrome.scripting.executeScript({
+        target: { tabId: currentTabId },
+        func: extractTextNodesFromDOM,
+      });
       textNodes = extractResult?.[0]?.result;
     } catch (scriptErr) {
       showError("Cannot access this page. Try refreshing or navigate to a CPF page.");
@@ -232,24 +231,6 @@ transformBtn.addEventListener("click", async () => {
       args: [nodeMap],
     });
 
-    // 4. Grab the now-transformed HTML and store both versions for the diff view
-    chrome.scripting.executeScript({
-      target: { tabId: currentTabId },
-      func: () => document.documentElement.outerHTML,
-    }).then(([transformedResult]) => {
-      if (!transformedResult?.result || !originalHtml) return;
-      return fetch(`${API_BASE_URL}/api/store-result`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          originalHtml: originalHtml,
-          transformedHtml: transformedResult.result,
-        }),
-      });
-    }).then(r => r?.json()).then(d => {
-      if (d?.resultId) lastResultId = d.resultId;
-    }).catch(() => {});
-
     showSuccess(data.nodes.length);
   } catch (err) {
     showError(err.message || "Network error — is the dev server running?");
@@ -258,12 +239,24 @@ transformBtn.addEventListener("click", async () => {
   }
 });
 
-// View changes in new tab
-viewDiffBtn.addEventListener("click", () => {
-  if (!lastResultId) return;
-  const params = new URLSearchParams({ id: lastResultId, url: currentUrl, mode });
-  if (mode === "simple") params.set("readingLevel", readingLevelSelect.value);
-  chrome.tabs.create({ url: `${API_BASE_URL}/result?${params.toString()}` });
+// Toggle highlights on changed text
+viewDiffBtn.addEventListener("click", async () => {
+  highlightsOn = !highlightsOn;
+  viewDiffBtn.querySelector(".btn-label").textContent = highlightsOn
+    ? "Hide highlights"
+    : "Show highlights";
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: currentTabId },
+      func: toggleHighlights,
+      args: [highlightsOn],
+    });
+  } catch {}
+});
+
+// Open original page in a new tab
+openOriginalBtn.addEventListener("click", () => {
+  if (currentUrl) chrome.tabs.create({ url: currentUrl });
 });
 
 // Undo
@@ -278,5 +271,6 @@ undoBtn.addEventListener("click", async () => {
   }
   successView.classList.remove("visible");
   formView.style.display = "flex";
-  lastResultId = null;
+  highlightsOn = false;
+  viewDiffBtn.querySelector(".btn-label").textContent = "Show highlights";
 });
