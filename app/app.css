@@ -1,16 +1,93 @@
 @import "tailwindcss" source(".");
 
 @theme {
-  --font-sans:
-    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: "Lato", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Source Code Pro", ui-monospace, monospace;
+  --color-cpf-teal: #006D6F;
+  --color-cpf-teal-dark: #005456;
+  --color-cpf-teal-light: #008A8C;
+  --color-cpf-mint: #E8F3EE;
+  --color-cpf-mint-dark: #D0E6D9;
+  --color-cpf-bg: #F5F7F6;
+  --color-cpf-white: #FFFFFF;
+  --color-cpf-text: #1A1A1A;
+  --color-cpf-text-secondary: #4A5568;
+  --color-cpf-text-muted: #718096;
+  --color-cpf-border: #D9E0E4;
+  --color-cpf-border-focus: #006D6F;
+  --color-cpf-danger: #C53030;
+  --color-cpf-danger-bg: #FFF5F5;
+  --color-cpf-success: #2F855A;
+  --color-cpf-success-bg: #F0FFF4;
 }
 
 html,
 body {
-  @apply bg-white dark:bg-gray-950;
+  background-color: var(--color-cpf-bg);
+  color: var(--color-cpf-text);
+}
 
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
+/* Animations */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Diff styles */
+.diff-add {
+  background-color: rgba(47, 133, 90, 0.1);
+  color: var(--color-cpf-success);
+  border-radius: 2px;
+  padding: 1px 2px;
+}
+.diff-remove {
+  background-color: rgba(197, 48, 48, 0.1);
+  color: var(--color-cpf-danger);
+  text-decoration: line-through;
+  border-radius: 2px;
+  padding: 1px 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-cpf-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-cpf-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-cpf-text-muted);
 }

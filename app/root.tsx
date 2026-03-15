@@ -6,16 +6,9 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
-//TODO: DELETE IF NOT USING CLERK AUTHENTICATION
-import { rootAuthLoader } from "@clerk/react-router/ssr.server";
-import { ClerkProvider } from "@clerk/react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
-
-export async function loader(args: Route.LoaderArgs) {
-  return rootAuthLoader(args);
-}
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -26,7 +19,7 @@ export const links: Route.LinksFunction = () => [
   },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
+    href: "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Source+Code+Pro:wght@400;500;600&display=swap",
   },
 ];
 
@@ -48,16 +41,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App({ loaderData }: Route.ComponentProps) {
-  //TODO: DELETE IF NOT USING CLERK AUTHENTICATION
-  return (
-    <ClerkProvider loaderData={loaderData}>
-      <Outlet />
-    </ClerkProvider>
-  );
-  
-  //TODO: UNCOMMENT IF NOT USING CLERK AUTHENTICATION
-  // return <Outlet />;
+export default function App() {
+  return <Outlet />;
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {

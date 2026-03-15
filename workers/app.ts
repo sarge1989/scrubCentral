@@ -1,91 +1,124 @@
 import { Hono } from "hono";
 import { createRequestHandler } from "react-router";
-//TODO: DELETE IF NOT USING CLERK AUTHENTICATION
-import { clerkAuth, getAuth } from "./middleware/auth";
+import { extractTextNodes, transformText, reassembleHtml, takeScreenshot } from "./lib/transform";
 
 const app = new Hono<{ Bindings: Env }>();
 
-//TODO: DELETE IF NO DURABLE OBJECTS ARE USED
-// Example API route using Durable Object
-app.get("/api/do/:id", async (c) => {
-  const id = c.req.param("id");
-  const doId = c.env.BACKEND_DO.idFromName(id);
-  const stub = c.env.BACKEND_DO.get(doId);
-  const response = await stub.fetch(c.req.raw);
-  return response;
-});
+app.post("/api/transform", async (c) => {
+  const body = await c.req.json<{
+    url: string;
+    mode: "simple" | "llm";
+    readingLevel?: "primary" | "secondary" | "adult";
+    customInstruction?: string;
+  }>();
 
-//TODO: DELETE IF NO D1 DATABASE IS USED
-// Example D1 database route
-app.get("/api/d1/example", async (c) => {
-  // Example: Create table if not exists
-  // await c.env.DB.exec(`
-  //   CREATE TABLE IF NOT EXISTS users (
-  //     id INTEGER PRIMARY KEY AUTOINCREMENT,
-  //     name TEXT NOT NULL,
-  //     email TEXT UNIQUE NOT NULL
-  //   )
-  // `);
-  
-  // Example: Query data
-  // const result = await c.env.DB.prepare("SELECT * FROM users").all();
-  // return c.json(result);
-  
-  return c.json({ message: "D1 database endpoint - implement your logic here" });
-});
+  // Validate input
+  if (!body.url || !body.mode) {
+    return c.json({ error: "url and mode are required" }, 400);
+  }
+  if (body.mode !== "simple" && body.mode !== "llm") {
+    return c.json({ error: "mode must be 'simple' or 'llm'" }, 400);
+  }
 
-//TODO: DELETE IF NO R2 BUCKET IS USED
-// Example R2 storage route
-app.post("/api/r2/upload", async (c) => {
-  // Example: Upload file to R2
-  // const formData = await c.req.formData();
-  // const file = formData.get("file") as File;
-  // if (file) {
-  //   const arrayBuffer = await file.arrayBuffer();
-  //   await c.env.BUCKET.put(file.name, arrayBuffer);
-  //   return c.json({ message: "File uploaded successfully" });
-  // }
-  
-  return c.json({ message: "R2 storage endpoint - implement your upload logic here" });
-});
+  let url: URL;
+  try {
+    url = new URL(body.url);
+  } catch {
+    return c.json({ error: "Invalid URL format" }, 400);
+  }
 
-app.get("/api/r2/:key", async (c) => {
-  // Example: Get file from R2
-  // const key = c.req.param("key");
-  // const object = await c.env.BUCKET.get(key);
-  // if (object) {
-  //   return new Response(object.body, {
-  //     headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream" }
-  //   });
-  // }
-  // return c.notFound();
-  
-  return c.json({ message: "R2 storage endpoint - implement your retrieval logic here" });
-});
+  // Check KV cache
+  const cacheKey = `transform:${url.toString()}:${body.mode}:${body.readingLevel || ""}:${body.customInstruction || ""}`;
+  const cached = await c.env.SCRUBCENTRAL_KV.get(cacheKey, "json") as {
+    originalHtml: string;
+    transformedHtml: string;
+  } | null;
+  if (cached) {
+    console.log("[api] cache hit for:", cacheKey);
+    return c.json(cached);
+  }
+  console.log("[api] cache miss, processing:", url.toString());
 
-//TODO: DELETE IF NOT USING CLERK AUTHENTICATION
-// Example: Protected API route
-app.get("/api/me", clerkAuth, async (c) => {
-  const { userId } = getAuth(c);
-  
-  // You can use the userId to fetch user-specific data
-  return c.json({ 
-    userId,
-    message: "This is a protected API route" 
-  });
-});
+  // Fetch the target URL
+  let originalHtml: string;
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
 
-// Example: Public API route
-app.get("/api/public", async (c) => {
-  return c.json({ message: "This is a public API route" });
-});
+    if (!response.ok) {
+      return c.json(
+        { error: `Failed to fetch URL: ${response.status} ${response.statusText}` },
+        502
+      );
+    }
 
-// Add more routes here
+    originalHtml = await response.text();
+    console.log("[api] fetched page, length:", originalHtml.length);
+  } catch (err) {
+    return c.json(
+      { error: `Failed to fetch URL: ${err instanceof Error ? err.message : "Unknown error"}` },
+      502
+    );
+  }
+
+  // Extract text nodes
+  const { textNodes, skeleton } = extractTextNodes(originalHtml);
+
+  if (textNodes.length === 0) {
+    return c.json({ error: "No text content found on the page" }, 422);
+  }
+
+  // Transform via LLM (with full-page screenshot for visual context)
+  try {
+    console.log("[api] extracted %d text nodes, taking screenshot...", textNodes.length);
+    const screenshotCdnUrl = await takeScreenshot(url.toString(), c.env.SCREENSHOTONE_ACCESS_KEY);
+
+    console.log("[api] calling GPT...");
+    const transformedNodes = await transformText(
+      textNodes,
+      body.mode,
+      c.env.OPENAI_API_KEY,
+      screenshotCdnUrl,
+      body.readingLevel,
+      body.customInstruction
+    );
+
+    const transformedHtml = reassembleHtml(skeleton, transformedNodes);
+    console.log("[api] done, transformed HTML length:", transformedHtml.length);
+
+    // Inject <base> tag so relative URLs (CSS, fonts, images) resolve against the original domain
+    const baseTag = `<base href="${url.origin}/">`;
+    const injectBase = (html: string) =>
+      html.includes("<base ") ? html : html.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`);
+
+    const result = {
+      originalHtml: injectBase(originalHtml),
+      transformedHtml: injectBase(transformedHtml),
+    };
+    c.executionCtx.waitUntil(
+      c.env.SCRUBCENTRAL_KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 604800 })
+    );
+    return c.json(result);
+  } catch (err) {
+    console.error("Transform error:", err);
+    return c.json(
+      {
+        error: `LLM transformation failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      },
+      500
+    );
+  }
+});
 
 app.get("*", (c) => {
   const requestHandler = createRequestHandler(
     () => import("virtual:react-router/server-build"),
-    import.meta.env.MODE,
+    import.meta.env.MODE
   );
 
   return requestHandler(c.req.raw, {
@@ -94,6 +127,3 @@ app.get("*", (c) => {
 });
 
 export default app;
-
-// Export Durable Object classes
-export { BackendDurableObject } from "./durableObjects/BackendDurableObject";

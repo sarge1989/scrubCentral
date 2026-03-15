@@ -1,131 +1,33 @@
-/**
- * For more details on how to configure Wrangler, refer to:
- * https://developers.cloudflare.com/workers/wrangler/configuration/
- */
-/**
- * For more details on how to configure Wrangler, refer to:
- * https://developers.cloudflare.com/workers/wrangler/configuration/
- */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "react-hono-template",
+  "name": "scrub-central",
   "compatibility_date": "2025-04-01",
   "main": "./workers/app.ts",
   "vars": {
     "VALUE_FROM_CLOUDFLARE": "Hello from Hono/CF",
-    //TODO: DELETE IF NOT USING CLERK AUTHENTICATION
-    //TODO: Replace with your actual Clerk Publishable Key from https://dashboard.clerk.com
-    "VITE_CLERK_PUBLISHABLE_KEY": "pk_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    //TODO: For CLERK_SECRET_KEY, use 'npx wrangler secret put CLERK_SECRET_KEY' instead of adding here
   },
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
-  /**
-  //TODO: DELETE IF NO DURABLE OBJECTS ARE USED
-   * Durable Objects
-   * https://developers.cloudflare.com/durable-objects/
-   */
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "BACKEND_DO",
-        "class_name": "BackendDurableObject"
-      }
-    ]
+  "upload_source_maps": true,
+  "kv_namespaces": [
+    {
+      "binding": "SCRUBCENTRAL_KV",
+      "id": "ce7b079288a64b1ca2d386282fbd1e9f",
+    },
+  ],
+  "env": {
+    "production": {
+      "name": "scrubCentral",
+      "vars": {
+        "ENVIRONMENT": "production",
+      },
+      "kv_namespaces": [
+        {
+          "binding": "SCRUBCENTRAL_KV",
+          "id": "ce7b079288a64b1ca2d386282fbd1e9f",
+        },
+      ],
+    },
   },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["BackendDurableObject"]
-    }
-  ],
-  /**
-  //TODO: DELETE IF NO D1 DATABASE IS USED
-   * D1 Database
-   * https://developers.cloudflare.com/d1/
-   * Run "npx wrangler d1 create <database-name>" to create a database
-   * Then update the database_name and database_id below
-   */
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "my-database",
-      "database_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-    }
-  ],
-  /**
-  //TODO: DELETE IF NO R2 BUCKET IS USED
-   * R2 Storage
-   * https://developers.cloudflare.com/r2/
-   * Run "npx wrangler r2 bucket create <bucket-name>" to create a bucket
-   * Then update the bucket_name below
-   */
-  "r2_buckets": [
-    {
-      "binding": "BUCKET",
-      "bucket_name": "my-bucket"
-    }
-  ],
-  /**
-   * Smart Placement
-   * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-   */
-  // "placement": { "mode": "smart" }
-  /**
-   * Bindings
-   * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-   * databases, object storage, AI inference, real-time communication and more.
-   * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-   */
-  /**
-   * Environment Variables
-   * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-   */
-  // "vars": { "MY_VARIABLE": "production_value" }
-  /**
-   * Note: Use secrets to store sensitive data.
-   * https://developers.cloudflare.com/workers/configuration/secrets/
-   */
-  /**
-   * Static Assets
-   * https://developers.cloudflare.com/workers/static-assets/binding/
-   */
-  // "assets": { "directory": "./public/", "binding": "ASSETS" }
-  /**
-   * Service Bindings (communicate between multiple Workers)
-   * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-   */
-  // "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
-  /**
-   * Smart Placement
-   * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-   */
-  // "placement": { "mode": "smart" },
-  /**
-   * Bindings
-   * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-   * databases, object storage, AI inference, real-time communication and more.
-   * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-   */
-  /**
-   * Environment Variables
-   * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-   */
-  // "vars": { "MY_VARIABLE": "production_value" },
-  /**
-   * Note: Use secrets to store sensitive data.
-   * https://developers.cloudflare.com/workers/configuration/secrets/
-   */
-  /**
-   * Static Assets
-   * https://developers.cloudflare.com/workers/static-assets/binding/
-   */
-  // "assets": { "directory": "./public/", "binding": "ASSETS" },
-  /**
-   * Service Bindings (communicate between multiple Workers)
-   * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-   */
-  // "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
-  "upload_source_maps": true
 }
