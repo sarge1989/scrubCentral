@@ -18,7 +18,7 @@
   ],
   "env": {
     "production": {
-      "name": "scrubCentral",
+      "name": "scrubcentral",
       "vars": {
         "ENVIRONMENT": "production",
       },
