@@ -1,159 +1,127 @@
-# React Router + Hono Full-Stack Template for Cloudflare Workers
+# ScrubCentral
 
-A production-ready full-stack template with authentication, database bindings, and modern tooling - all deployable to Cloudflare's edge network.
+A page transform engine that rewrites web content for simplified reading or LLM consumption. Built primarily for CPF Board (cpf.gov.sg) pages, which are JS-rendered SPAs that can't be fetched server-side.
 
-## 🚀 Quick Start
+**Live site:** https://scrubcentral.tanbingwen.com
+
+## How it works
+
+1. Text nodes are extracted from the page's DOM
+2. An LLM (GPT) rewrites each text block according to the selected mode
+3. Transformed text is applied back while preserving the original page layout, styles, and fonts
+
+Two ways to use it:
+
+- **Chrome Extension** (recommended for CPF pages) — transforms the page in-situ directly in your browser
+- **Web UI** — paste a URL and get a side-by-side comparison with diff view
+
+## Chrome Extension
+
+The extension solves the core problem: CPF pages are JS-rendered SPAs, so server-side `fetch` only gets a loading shell. The extension grabs the fully-rendered DOM from the browser after JavaScript has executed.
+
+### Features
+
+- **In-situ transformation** — text is rewritten directly on the page you're viewing
+- **Two modes:** Simple English (with reading level selection) or LLM-Optimized
+- **Custom instructions** — e.g., "focus on retirement benefits"
+- **Undo** — restore the original text with one click
+- **View changes** — open a side-by-side diff in a new tab
+
+### Install locally
+
+1. Clone this repo
+2. Open `chrome://extensions` in Chrome
+3. Enable **Developer mode** (toggle top-right)
+4. Click **Load unpacked** and select the `extension/` folder
+5. Pin ScrubCentral from the puzzle-piece icon in the toolbar
+
+### Usage
+
+1. Navigate to any CPF page (e.g., https://www.cpf.gov.sg/member/retirement-income/milestones/reaching-age-55)
+2. Click the ScrubCentral extension icon
+3. Select transform mode and reading level
+4. Click **Transform this page**
+5. The page text is rewritten in place — use **Undo** to restore or **View changes** to see a diff
+
+## Web UI
+
+Visit https://scrubcentral.tanbingwen.com, paste a URL, and click Transform. Works best for pages that aren't JS-rendered SPAs (the server fetches the HTML directly).
+
+## Architecture
+
+```
+extension/          Chrome extension (Manifest V3)
+├── popup.html/js   Extension popup UI and logic
+├── config.js       API base URL
+└── manifest.json   Permissions and metadata
+
+app/                React Router frontend
+├── routes/
+│   ├── home.tsx    Landing page with URL input form
+│   ├── result.tsx  Side-by-side comparison + diff view
+│   └── privacy.tsx Privacy policy
+└── routes.ts       Route config
+
+workers/            Hono API on Cloudflare Workers
+├── app.ts          API endpoints
+└── lib/
+    └── transform.ts Text extraction, GPT transformation, screenshot
+```
+
+### API Endpoints
+
+| Endpoint | Description |
+|---|---|
+| `POST /api/transform` | Full pipeline: accepts URL or pre-rendered HTML, extracts text, transforms via GPT, returns original + transformed HTML |
+| `POST /api/transform-nodes` | Lightweight: accepts pre-extracted text nodes, returns transformed text (used by extension for in-situ mode) |
+| `POST /api/store-result` | Stores pre-computed results in KV for later retrieval |
+| `GET /api/result/:id` | Retrieves cached results by ID |
+
+### Extension flow (in-situ)
+
+```
+User clicks extension → extract text nodes from live DOM
+→ POST /api/transform-nodes → GPT transforms text
+→ mutate text nodes in the live DOM (no HTML serialization)
+```
+
+### Web UI flow
+
+```
+User pastes URL → POST /api/transform → server fetches HTML
+→ extract text nodes → screenshot → GPT transforms text
+→ reassemble HTML → display in iframe with diff
+```
+
+## Development
 
 ```bash
-# Clone the template
-git clone <your-repo-url>
-cd react-hono-template
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
+npm run dev          # Start dev server at localhost:5173
 ```
 
-Visit http://localhost:5173 to see your app running!
+Load the extension in Chrome (see install instructions above). The extension's `config.js` must point to `http://localhost:5173` for local development.
 
-## 📋 Template Features & Configuration
+### Environment variables
 
-This template includes several **optional** features pre-configured with TODO comments. **Delete what you don't need!**
+Create a `.dev.vars` file:
 
-### 🔍 Finding TODOs
-Search for `TODO:` comments throughout the codebase to find features you can remove:
-- `TODO: DELETE IF NOT USING CLERK AUTHENTICATION` - Clerk auth setup
-- `TODO: DELETE IF NO DURABLE OBJECTS ARE USED` - Durable Objects
-- `TODO: DELETE IF NO D1 DATABASE IS USED` - D1 Database
-- `TODO: DELETE IF NO R2 BUCKET IS USED` - R2 Storage
-
-### 🔐 Authentication (Clerk) - Optional
-
-If you want authentication:
-
-1. **Create a Clerk account** at https://dashboard.clerk.com
-2. **Create a new application** in Clerk Dashboard
-3. **Get your API keys**:
-   - Copy your **Publishable Key** 
-   - Copy your **Secret Key**
-4. **Configure keys**:
-   ```bash
-   # For local development, create .dev.vars
-   cp .dev.vars.example .dev.vars
-   # Edit .dev.vars and add your CLERK_SECRET_KEY
-   
-   # Update wrangler.jsonc with your Publishable Key
-   # Replace the placeholder key in VITE_CLERK_PUBLISHABLE_KEY
-   
-   # For production
-   npx wrangler secret put CLERK_SECRET_KEY
-   ```
-5. **Test authentication**: Visit `/dashboard` to see protected route
-
-**Don't want authentication?** Search for `TODO: DELETE IF NOT USING CLERK AUTHENTICATION` and remove all marked code.
-
-### 💾 Database & Storage - Optional
-
-#### D1 Database (SQLite at the edge)
-```bash
-# Create a D1 database
-npx wrangler d1 create my-database
-
-# Update wrangler.jsonc with the database_id from output
+```
+OPENAI_API_KEY=sk-...
+SCREENSHOTONE_ACCESS_KEY=...
 ```
 
-**Don't need D1?** Remove sections marked `TODO: DELETE IF NO D1 DATABASE IS USED`
-
-#### R2 Storage (Object storage)
-```bash
-# Create an R2 bucket
-npx wrangler r2 bucket create my-bucket
-
-# Update bucket_name in wrangler.jsonc
-```
-
-**Don't need R2?** Remove sections marked `TODO: DELETE IF NO R2 BUCKET IS USED`
-
-#### Durable Objects (Stateful workers)
-Already configured with `BackendDurableObject` class.
-
-**Don't need Durable Objects?** Remove sections marked `TODO: DELETE IF NO DURABLE OBJECTS ARE USED`
-
-## 🛠 Development Commands
+## Deployment
 
 ```bash
-npm run dev        # Start development server
-npm run build      # Build for production
-npm run typecheck  # Run TypeScript checks
-npm run deploy     # Deploy to Cloudflare Workers
+npm run deploy
 ```
 
-## 🚢 Deployment
+Requires a Cloudflare account with:
+- Workers (serverless compute)
+- KV namespace (`SCRUBCENTRAL_KV`) for caching results (7-day TTL)
+- Secrets: `OPENAI_API_KEY`, `SCREENSHOTONE_ACCESS_KEY`
 
-1. **Login to Cloudflare**:
-   ```bash
-   npx wrangler login
-   ```
+## Privacy
 
-2. **Configure your project**:
-   - Update `name` in `wrangler.jsonc` with your project name
-   - Ensure all environment variables are set
-
-3. **Deploy**:
-   ```bash
-   npm run deploy
-   ```
-
-4. **Set production secrets** (if using Clerk):
-   ```bash
-   npx wrangler secret put CLERK_SECRET_KEY
-   ```
-
-## 📚 Architecture Overview
-
-This template uses **React Router v7 in framework mode** with SSR on Cloudflare Workers:
-
-- **Frontend**: React Router handles routing and SSR
-- **Backend**: Hono provides API endpoints at `/api/*`
-- **Edge Runtime**: Everything runs on Cloudflare Workers
-
-### When to use React Router Loaders vs Hono APIs:
-- **Loaders**: Initial page data, SEO content, direct database access
-- **Hono APIs**: Client interactions, form submissions, webhooks, mobile endpoints
-
-See `CLAUDE.md` for detailed architecture documentation.
-
-## 🏗 Project Structure
-
-```
-app/
-├── routes/           # React Router pages
-│   ├── home.tsx     # Home page
-│   ├── dashboard.tsx # Protected route example
-│   └── sign-in.$.tsx # Clerk sign-in page
-├── lib/             # Utilities
-│   ├── auth.server.ts # Server-side auth helpers
-│   └── api.ts       # Client-side API helpers
-└── root.tsx         # App root with ClerkProvider
-
-workers/
-├── app.ts           # Hono API server
-├── middleware/      # API middleware
-│   └── auth.ts      # Clerk JWT verification
-└── durableObjects/  # Durable Object classes
-
-wrangler.jsonc       # Cloudflare configuration
-```
-
-## 📖 Resources
-
-- [React Router v7 Docs](https://reactrouter.com/)
-- [Hono Documentation](https://hono.dev/)
-- [Clerk Documentation](https://clerk.com/docs)
-- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/)
-- [D1 Database](https://developers.cloudflare.com/d1/)
-- [R2 Storage](https://developers.cloudflare.com/r2/)
-- [Durable Objects](https://developers.cloudflare.com/durable-objects/)
+See [Privacy Policy](https://scrubcentral.tanbingwen.com/privacy). The extension only accesses page content when you explicitly click Transform. No data is collected passively.
