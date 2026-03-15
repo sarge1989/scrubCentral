@@ -22,6 +22,12 @@
       "vars": {
         "ENVIRONMENT": "production",
       },
+      "routes": [
+        {
+          "pattern": "scrubcentral.tanbingwen.com",
+          "custom_domain": true,
+        },
+      ],
       "kv_namespaces": [
         {
           "binding": "SCRUBCENTRAL_KV",
