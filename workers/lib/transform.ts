@@ -82,12 +82,15 @@ export function extractTextNodes(html: string): {
     for (const child of node.childNodes) {
       if (child.nodeType === 3) {
         // Text node
-        const text = child.text.trim();
+        const rawText: string = child.text;
+        const text = rawText.trim();
         if (text.length > 0) {
           const id = nextId++;
           textNodes.push({ id, text });
-          // Replace text content with placeholder
-          (child as any).rawText = makePlaceholder(id);
+          // Preserve leading/trailing whitespace around the placeholder
+          const leading = rawText.match(/^\s*/)?.[0] || "";
+          const trailing = rawText.match(/\s*$/)?.[0] || "";
+          (child as any).rawText = leading + makePlaceholder(id) + trailing;
         }
       } else if (child.nodeType === 1) {
         // Element node
@@ -209,15 +212,15 @@ export async function takeScreenshot(
 }
 
 /**
- * Send all text nodes + a screenshot to GPT in a single call.
- * The screenshot gives the LLM visual context of the page structure.
+ * Send all text nodes to GPT in a single call.
+ * Optionally includes a screenshot for visual context (skipped for extension requests).
  * Returns a map of node ID → transformed text.
  */
 export async function transformText(
   textNodes: TextNode[],
   mode: Mode,
   apiKey: string,
-  screenshotCdnUrl: string,
+  screenshotDataUrl?: string,
   readingLevel?: ReadingLevel,
   customInstruction?: string
 ): Promise<Map<number, string>> {
@@ -226,29 +229,34 @@ export async function transformText(
   const client = new OpenAI({ apiKey });
   const systemPrompt = buildSystemPrompt(mode, readingLevel, customInstruction);
 
-  console.log("[transform] sending %d text nodes to GPT with screenshot", textNodes.length);
+  console.log("[transform] sending %d text nodes to GPT%s", textNodes.length, screenshotDataUrl ? " with screenshot" : " (text-only)");
 
   const userMessage = textNodes
     .map((n) => `[${n.id}] ${n.text}`)
     .join("\n");
 
+  const userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+  if (screenshotDataUrl) {
+    userContent.push({
+      type: "image_url",
+      image_url: { url: screenshotDataUrl },
+    });
+    userContent.push({
+      type: "text",
+      text: `The image above is a full-page screenshot of the source webpage. Use it to understand the page's visual structure and context.\n\nBelow are numbered text blocks extracted from this page, in reading order. Rewrite each one. Return every block with its original ID.\n\n${userMessage}`,
+    });
+  } else {
+    userContent.push({
+      type: "text",
+      text: `Below are numbered text blocks extracted from a webpage, in reading order. Rewrite each one. Return every block with its original ID.\n\n${userMessage}`,
+    });
+  }
+
   const response = await client.chat.completions.create({
     model: "gpt-5.4",
     messages: [
       { role: "system", content: systemPrompt },
-      {
-        role: "user",
-        content: [
-          {
-            type: "image_url",
-            image_url: { url: screenshotCdnUrl },
-          },
-          {
-            type: "text",
-            text: `The image above is a full-page screenshot of the source webpage. Use it to understand the page's visual structure and context.\n\nBelow are numbered text blocks extracted from this page, in reading order. Rewrite each one. Return every block with its original ID.\n\n${userMessage}`,
-          },
-        ],
-      },
+      { role: "user", content: userContent },
     ],
     temperature: 0.3,
     response_format: {

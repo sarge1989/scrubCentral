@@ -81,21 +81,55 @@ export default function Result() {
   const [originalHtml, setOriginalHtml] = useState<string | null>(null);
   const [transformedHtml, setTransformedHtml] = useState<string | null>(null);
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const url = searchParams.get("url") || "";
   const mode = searchParams.get("mode") || "simple";
   const readingLevel = searchParams.get("readingLevel");
+  const resultId = searchParams.get("id");
 
   useEffect(() => {
-    setOriginalHtml(sessionStorage.getItem("scrub:originalHtml"));
-    setTransformedHtml(sessionStorage.getItem("scrub:transformedHtml"));
-  }, []);
+    if (resultId) {
+      // Fetch from API by result ID (used by extension flow)
+      setLoading(true);
+      fetch(`/api/result/${resultId}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Result not found or expired");
+          return res.json() as Promise<{ originalHtml: string; transformedHtml: string }>;
+        })
+        .then((data) => {
+          setOriginalHtml(data.originalHtml);
+          setTransformedHtml(data.transformedHtml);
+        })
+        .catch((err) => setError(err.message))
+        .finally(() => setLoading(false));
+    } else {
+      // Legacy: read from sessionStorage (used by web form flow)
+      setOriginalHtml(sessionStorage.getItem("scrub:originalHtml"));
+      setTransformedHtml(sessionStorage.getItem("scrub:transformedHtml"));
+    }
+  }, [resultId]);
 
   const diffResult = useMemo(() => {
     if (!originalHtml || !transformedHtml) return [];
     return computeDiff(originalHtml, transformedHtml);
   }, [originalHtml, transformedHtml]);
 
-  if (!originalHtml || !transformedHtml) {
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-cpf-bg">
+        <div className="bg-cpf-white rounded-xl border border-cpf-border p-10 text-center space-y-4 shadow-sm">
+          <svg className="w-8 h-8 mx-auto animate-spin text-cpf-teal" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+          </svg>
+          <p className="text-cpf-text-secondary">Loading results…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !originalHtml || !transformedHtml) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-cpf-bg">
         <div className="bg-cpf-white rounded-xl border border-cpf-border p-10 text-center space-y-4 shadow-sm">
@@ -105,7 +139,7 @@ export default function Result() {
             </svg>
           </div>
           <p className="text-cpf-text-secondary">
-            No transform data found. Your session may have expired.
+            {error || "No transform data found. Your session may have expired."}
           </p>
           <Link
             to="/"
@@ -219,7 +253,7 @@ export default function Result() {
             <iframe
               srcDoc={originalHtml}
               title="Original page"
-              sandbox="allow-same-origin"
+              sandbox="allow-same-origin allow-scripts"
               className="w-full min-h-[80vh] border-0"
             />
           </div>
@@ -230,7 +264,7 @@ export default function Result() {
             <iframe
               srcDoc={transformedHtml}
               title="Transformed page"
-              sandbox="allow-same-origin"
+              sandbox="allow-same-origin allow-scripts"
               className="w-full min-h-[80vh] border-0"
             />
           </div>

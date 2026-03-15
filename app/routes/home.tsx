@@ -93,8 +93,14 @@ export default function Home() {
             Simplify any webpage
           </h1>
           <p className="text-lg text-cpf-text-secondary max-w-xl leading-relaxed">
-            Paste a URL to transform its content for easier reading or LLM consumption.
-            The engine fetches, extracts, and rewrites the text while preserving the page layout.
+            Paste a URL below, or{" "}
+            <a
+              href="https://github.com/anthropics/scrubCentral#chrome-extension"
+              className="text-cpf-teal font-bold hover:underline"
+            >
+              install the Chrome extension
+            </a>{" "}
+            to transform JS-rendered pages like CPF.gov.sg directly from your browser.
           </p>
         </div>
       </section>

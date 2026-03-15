@@ -44,6 +44,7 @@
     "cf-typegen": "wrangler types",
     "deploy": "npm run build && wrangler deploy",
     "dev": "react-router dev",
-    "preview": "npm run build && vite preview"
+    "preview": "npm run build && vite preview",
+    "deploy:production": "CLOUDFLARE_ENV=production npm run build && wrangler deploy"
   }
 }
