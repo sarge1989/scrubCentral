@@ -17,12 +17,6 @@
     //TODO: Replace with your actual Clerk Publishable Key from https://dashboard.clerk.com
     "VITE_CLERK_PUBLISHABLE_KEY": "pk_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     //TODO: For CLERK_SECRET_KEY, use 'npx wrangler secret put CLERK_SECRET_KEY' instead of adding here
-    
-    //TODO: DELETE IF NOT USING STRIPE PAYMENTS
-    //TODO: Replace with your actual Stripe Publishable Key from https://dashboard.stripe.com
-    "VITE_STRIPE_PUBLISHABLE_KEY": "pk_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-    //TODO: For STRIPE_SECRET_KEY, use 'npx wrangler secret put STRIPE_SECRET_KEY' instead of adding here
-    //TODO: For STRIPE_WEBHOOK_SECRET, use 'npx wrangler secret put STRIPE_WEBHOOK_SECRET' instead of adding here
   },
   "observability": {
     "enabled": true

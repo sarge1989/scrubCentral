@@ -9,7 +9,6 @@ declare namespace Cloudflare {
   interface Env {
     VALUE_FROM_CLOUDFLARE: "Hello from Hono/CF";
     VITE_CLERK_PUBLISHABLE_KEY: "pk_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
-    VITE_STRIPE_PUBLISHABLE_KEY: "pk_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
     CLERK_SECRET_KEY: string;
     BACKEND_DO: DurableObjectNamespace<
       import("./workers/app").BackendDurableObject

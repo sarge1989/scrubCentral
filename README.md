@@ -81,33 +81,6 @@ Already configured with `BackendDurableObject` class.
 
 **Don't need Durable Objects?** Remove sections marked `TODO: DELETE IF NO DURABLE OBJECTS ARE USED`
 
-### 💳 Payments (Stripe) - Optional
-
-If you want payments:
-
-1. **Create a Stripe account** at https://dashboard.stripe.com
-2. **Get your API keys** from the Stripe Dashboard (test mode first)
-3. **Configure keys**:
-   ```bash
-   # Update wrangler.jsonc with your Publishable Key
-   # Replace VITE_STRIPE_PUBLISHABLE_KEY placeholder
-   
-   # For local development, add to .dev.vars:
-   STRIPE_SECRET_KEY=sk_test_...
-   STRIPE_WEBHOOK_SECRET=whsec_...
-   
-   # For production:
-   npx wrangler secret put STRIPE_SECRET_KEY
-   npx wrangler secret put STRIPE_WEBHOOK_SECRET
-   ```
-4. **Set up webhook** in Stripe Dashboard pointing to `/api/stripe/webhook`
-5. **Available endpoints**:
-   - `POST /api/stripe/create-checkout-session` - Stripe-hosted checkout
-   - `POST /api/stripe/create-payment-intent` - Custom payment forms
-   - `POST /api/stripe/webhook` - Payment confirmations
-
-**Don't want payments?** Remove sections marked `TODO: DELETE IF NOT USING STRIPE PAYMENTS`
-
 ## 🛠 Development Commands
 
 ```bash

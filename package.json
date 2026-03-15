@@ -18,13 +18,11 @@
   },
   "dependencies": {
     "@clerk/react-router": "^2.3.7",
-    "@stripe/react-stripe-js": "^5.4.1",
     "hono": "^4.11.3",
     "isbot": "5.1.32",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-router": "7.11.0",
-    "stripe": "^20.1.0"
+    "react-router": "7.11.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.19.0",
