@@ -86,6 +86,8 @@ function extractTextNodesFromDOM() {
     "IMG", "VIDEO", "AUDIO", "IFRAME", "FORM", "INPUT", "SELECT",
     "TEXTAREA", "BUTTON", "CANVAS",
   ]);
+  // Angular/React framework artifacts that appear as text nodes
+  const FRAMEWORK_JUNK = new Set(["false", "true", "null", "undefined", "NaN"]);
   const nodes = [];
   let nextId = 0;
   function walk(el) {
@@ -93,7 +95,7 @@ function extractTextNodesFromDOM() {
     for (const child of el.childNodes) {
       if (child.nodeType === 3) {
         const text = child.textContent.trim();
-        if (text.length > 0) nodes.push({ id: nextId++, text });
+        if (text.length > 0 && !FRAMEWORK_JUNK.has(text)) nodes.push({ id: nextId++, text });
       } else if (child.nodeType === 1) walk(child);
     }
   }
@@ -108,6 +110,7 @@ function applyTransformedNodes(nodeMap) {
     "IMG", "VIDEO", "AUDIO", "IFRAME", "FORM", "INPUT", "SELECT",
     "TEXTAREA", "BUTTON", "CANVAS",
   ]);
+  const FRAMEWORK_JUNK = new Set(["false", "true", "null", "undefined", "NaN"]);
   const originals = {};
   let nextId = 0;
   function walk(el) {
@@ -115,7 +118,7 @@ function applyTransformedNodes(nodeMap) {
     for (const child of el.childNodes) {
       if (child.nodeType === 3) {
         const text = child.textContent.trim();
-        if (text.length > 0) {
+        if (text.length > 0 && !FRAMEWORK_JUNK.has(text)) {
           const id = nextId++;
           if (nodeMap[id] !== undefined) {
             originals[id] = child.textContent;
@@ -141,13 +144,14 @@ function restoreOriginalNodes() {
     "IMG", "VIDEO", "AUDIO", "IFRAME", "FORM", "INPUT", "SELECT",
     "TEXTAREA", "BUTTON", "CANVAS",
   ]);
+  const FRAMEWORK_JUNK = new Set(["false", "true", "null", "undefined", "NaN"]);
   let nextId = 0;
   function walk(el) {
     if (SKIP.has(el.tagName)) return;
     for (const child of el.childNodes) {
       if (child.nodeType === 3) {
         const text = child.textContent.trim();
-        if (text.length > 0) {
+        if (text.length > 0 && !FRAMEWORK_JUNK.has(text)) {
           const id = nextId++;
           if (originals[id] !== undefined) child.textContent = originals[id];
         }
@@ -171,19 +175,25 @@ transformBtn.addEventListener("click", async () => {
 
   try {
     // 1. Grab original HTML + extract text nodes in parallel
-    const [htmlResult, extractResult] = await Promise.all([
-      chrome.scripting.executeScript({
-        target: { tabId: currentTabId },
-        func: () => document.documentElement.outerHTML,
-      }),
-      chrome.scripting.executeScript({
-        target: { tabId: currentTabId },
-        func: extractTextNodesFromDOM,
-      }),
-    ]);
-
-    const originalHtml = htmlResult[0].result;
-    const textNodes = extractResult[0].result;
+    let originalHtml, textNodes;
+    try {
+      const [htmlResult, extractResult] = await Promise.all([
+        chrome.scripting.executeScript({
+          target: { tabId: currentTabId },
+          func: () => document.documentElement.outerHTML,
+        }),
+        chrome.scripting.executeScript({
+          target: { tabId: currentTabId },
+          func: extractTextNodesFromDOM,
+        }),
+      ]);
+      originalHtml = htmlResult?.[0]?.result;
+      textNodes = extractResult?.[0]?.result;
+    } catch (scriptErr) {
+      showError("Cannot access this page. Try refreshing or navigate to a CPF page.");
+      setLoading(false);
+      return;
+    }
 
     if (!textNodes || textNodes.length === 0) {
       showError("No text content found on the page.");
@@ -223,21 +233,21 @@ transformBtn.addEventListener("click", async () => {
     });
 
     // 4. Grab the now-transformed HTML and store both versions for the diff view
-    const [transformedResult] = await chrome.scripting.executeScript({
+    chrome.scripting.executeScript({
       target: { tabId: currentTabId },
       func: () => document.documentElement.outerHTML,
-    });
-
-    // Store in background (just a KV write, very fast)
-    fetch(`${API_BASE_URL}/api/store-result`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        originalHtml: originalHtml,
-        transformedHtml: transformedResult[0].result,
-      }),
-    }).then(r => r.json()).then(d => {
-      if (d.resultId) lastResultId = d.resultId;
+    }).then(([transformedResult]) => {
+      if (!transformedResult?.result || !originalHtml) return;
+      return fetch(`${API_BASE_URL}/api/store-result`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          originalHtml: originalHtml,
+          transformedHtml: transformedResult.result,
+        }),
+      });
+    }).then(r => r?.json()).then(d => {
+      if (d?.resultId) lastResultId = d.resultId;
     }).catch(() => {});
 
     showSuccess(data.nodes.length);
