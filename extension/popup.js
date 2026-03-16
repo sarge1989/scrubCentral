@@ -27,10 +27,10 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     currentUrl = tab.url;
     currentTabId = tab.id;
     urlInfo.textContent = tab.url;
-    if (!tab.url.includes("cpf.gov.sg")) {
+    if (!tab.url.includes(".gov.sg")) {
       urlInfo.classList.add("not-cpf");
       urlInfo.textContent =
-        "Not a CPF page — extension may not work as expected";
+        "Not a Singapore Government page — extension may not work as expected";
     }
   } else {
     urlInfo.textContent = "Unable to read tab URL";
@@ -287,7 +287,7 @@ transformBtn.addEventListener("click", async () => {
       textNodes = extractResult?.[0]?.result;
     } catch (scriptErr) {
       showError(
-        "Cannot access this page. Try refreshing or navigate to a CPF page.",
+        "Cannot access this page. Try refreshing or navigate to a Singapore Government page.",
       );
       setLoading(false);
       return;

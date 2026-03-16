@@ -120,7 +120,7 @@ export function reassembleHtml(
 type Mode = "simple" | "llm";
 type ReadingLevel = "primary" | "secondary" | "adult";
 
-const CONTEXT_PREAMBLE = `The content is from the CPF (Central Provident Fund) Board website. The audience is CPF members — Singaporeans and permanent residents. Assume familiarity with Singapore-specific context: Singpass, NRIC, HDB, MediShield Life, WorkFare, Pioneer/Merdeka Generation, GovTech services, etc. Do not explain these terms unless the reading level demands it.`;
+const CONTEXT_PREAMBLE = `The content is from a Singapore Government website. The audience is Singapore residents and citizens. Assume familiarity with Singapore-specific context: Singpass, NRIC, HDB, CPF, MediShield Life, WorkFare, Pioneer/Merdeka Generation, GovTech services, etc. Do not explain these terms unless the reading level demands it.`;
 
 function buildSystemPrompt(
   mode: Mode,
@@ -132,9 +132,9 @@ function buildSystemPrompt(
   if (mode === "simple") {
     const levelDesc: Record<ReadingLevel, string> = {
       primary:
-        "a primary school student (age 7-12). Use very simple words and short sentences. Explain technical CPF terms but keep Singapore-specific references (Singpass, HDB, etc.) as-is.",
+        "a primary school student (age 7-12). Use very simple words and short sentences. Explain technical government terms but keep Singapore-specific references (Singpass, HDB, CPF, etc.) as-is.",
       secondary:
-        "a secondary school student (age 13-16). Use straightforward language. Briefly explain technical CPF terms.",
+        "a secondary school student (age 13-16). Use straightforward language. Briefly explain technical government terms.",
       adult:
         "a general adult audience. Use clear, plain English. Avoid jargon where possible.",
     };
@@ -156,7 +156,7 @@ Rules:
 - Make references explicit (replace pronouns with their referents where ambiguous)
 - Use unambiguous, precise language
 - Add structural markers (e.g., "Step 1:", "Condition:", "Exception:")
-- Make implicit context explicit — expand CPF-specific abbreviations on first use
+- Make implicit context explicit — expand agency-specific abbreviations on first use
 - Remove filler words and redundant phrases
 - Keep all factual content intact
 - Do not add information that wasn't in the original

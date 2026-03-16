@@ -14,7 +14,7 @@
 
 ### How to use
 
-1. Navigate to a CPF page, e.g. https://www.cpf.gov.sg/member/retirement-income/milestones/reaching-age-55
+1. Navigate to a Singapore Government page, e.g. https://www.cpf.gov.sg/member/retirement-income/milestones/reaching-age-55
 2. Wait for the page to fully load
 3. Click the **ScrubCentral** extension icon in the toolbar
 4. Choose your settings:
@@ -32,6 +32,6 @@
 
 ### Notes
 
-- The extension works on any webpage but is designed for CPF.gov.sg pages
+- The extension works on any webpage but is designed for Singapore Government (.gov.sg) pages
 - Transformation requires an internet connection (text is processed by an AI model on our server)
 - No data is collected passively — the extension only reads the page when you click Transform
