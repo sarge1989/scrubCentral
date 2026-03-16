@@ -12,12 +12,13 @@ const formView = document.getElementById("formView");
 const successView = document.getElementById("successView");
 const successSub = document.getElementById("successSub");
 const viewDiffBtn = document.getElementById("viewDiffBtn");
+const openOriginalBtn = document.getElementById("openOriginalBtn");
 const undoBtn = document.getElementById("undoBtn");
 
 let mode = "simple";
 let currentUrl = "";
 let currentTabId = null;
-let lastResultId = null;
+let highlightsOn = false;
 
 // Show current tab URL
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -28,7 +29,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     urlInfo.textContent = tab.url;
     if (!tab.url.includes("cpf.gov.sg")) {
       urlInfo.classList.add("not-cpf");
-      urlInfo.textContent = "Not a CPF page — extension may not work as expected";
+      urlInfo.textContent =
+        "Not a CPF page — extension may not work as expected";
     }
   } else {
     urlInfo.textContent = "Unable to read tab URL";
@@ -82,9 +84,23 @@ function showSuccess(nodeCount) {
 /** Content script: extract text nodes from the live DOM. */
 function extractTextNodesFromDOM() {
   const SKIP = new Set([
-    "NAV", "HEADER", "FOOTER", "SCRIPT", "STYLE", "NOSCRIPT", "SVG",
-    "IMG", "VIDEO", "AUDIO", "IFRAME", "FORM", "INPUT", "SELECT",
-    "TEXTAREA", "BUTTON", "CANVAS",
+    "NAV",
+    "HEADER",
+    "FOOTER",
+    "SCRIPT",
+    "STYLE",
+    "NOSCRIPT",
+    "SVG",
+    "IMG",
+    "VIDEO",
+    "AUDIO",
+    "IFRAME",
+    "FORM",
+    "INPUT",
+    "SELECT",
+    "TEXTAREA",
+    "BUTTON",
+    "CANVAS",
   ]);
   // Angular/React framework artifacts that appear as text nodes
   const FRAMEWORK_JUNK = new Set(["false", "true", "null", "undefined", "NaN"]);
@@ -95,7 +111,8 @@ function extractTextNodesFromDOM() {
     for (const child of el.childNodes) {
       if (child.nodeType === 3) {
         const text = child.textContent.trim();
-        if (text.length > 0 && !FRAMEWORK_JUNK.has(text)) nodes.push({ id: nextId++, text });
+        if (text.length > 0 && !FRAMEWORK_JUNK.has(text))
+          nodes.push({ id: nextId++, text });
       } else if (child.nodeType === 1) walk(child);
     }
   }
@@ -103,29 +120,48 @@ function extractTextNodesFromDOM() {
   return nodes;
 }
 
-/** Content script: replace text nodes in the live DOM. Saves originals for undo. */
+/** Content script: replace text nodes in the live DOM. Wraps changed nodes in spans for highlighting. Saves originals for undo. */
 function applyTransformedNodes(nodeMap) {
   const SKIP = new Set([
-    "NAV", "HEADER", "FOOTER", "SCRIPT", "STYLE", "NOSCRIPT", "SVG",
-    "IMG", "VIDEO", "AUDIO", "IFRAME", "FORM", "INPUT", "SELECT",
-    "TEXTAREA", "BUTTON", "CANVAS",
+    "NAV",
+    "HEADER",
+    "FOOTER",
+    "SCRIPT",
+    "STYLE",
+    "NOSCRIPT",
+    "SVG",
+    "IMG",
+    "VIDEO",
+    "AUDIO",
+    "IFRAME",
+    "FORM",
+    "INPUT",
+    "SELECT",
+    "TEXTAREA",
+    "BUTTON",
+    "CANVAS",
   ]);
   const FRAMEWORK_JUNK = new Set(["false", "true", "null", "undefined", "NaN"]);
   const originals = {};
   let nextId = 0;
   function walk(el) {
     if (SKIP.has(el.tagName)) return;
-    for (const child of el.childNodes) {
+    const children = Array.from(el.childNodes);
+    for (const child of children) {
       if (child.nodeType === 3) {
         const text = child.textContent.trim();
         if (text.length > 0 && !FRAMEWORK_JUNK.has(text)) {
           const id = nextId++;
           if (nodeMap[id] !== undefined) {
-            originals[id] = child.textContent;
             const raw = child.textContent;
+            originals[id] = raw;
             const leading = (raw.match(/^\s*/) || [""])[0];
             const trailing = (raw.match(/\s*$/) || [""])[0];
-            child.textContent = leading + nodeMap[id] + trailing;
+            const span = document.createElement("span");
+            span.className = "scrubcentral-changed";
+            span.dataset.scrubcentralOriginal = raw;
+            span.textContent = leading + nodeMap[id] + trailing;
+            child.parentNode.replaceChild(span, child);
           }
         }
       } else if (child.nodeType === 1) walk(child);
@@ -135,30 +171,97 @@ function applyTransformedNodes(nodeMap) {
   window.__scrubcentralOriginals = originals;
 }
 
-/** Content script: undo transformation. */
-function restoreOriginalNodes() {
-  const originals = window.__scrubcentralOriginals;
-  if (!originals) return;
-  const SKIP = new Set([
-    "NAV", "HEADER", "FOOTER", "SCRIPT", "STYLE", "NOSCRIPT", "SVG",
-    "IMG", "VIDEO", "AUDIO", "IFRAME", "FORM", "INPUT", "SELECT",
-    "TEXTAREA", "BUTTON", "CANVAS",
-  ]);
-  const FRAMEWORK_JUNK = new Set(["false", "true", "null", "undefined", "NaN"]);
-  let nextId = 0;
-  function walk(el) {
-    if (SKIP.has(el.tagName)) return;
-    for (const child of el.childNodes) {
-      if (child.nodeType === 3) {
-        const text = child.textContent.trim();
-        if (text.length > 0 && !FRAMEWORK_JUNK.has(text)) {
-          const id = nextId++;
-          if (originals[id] !== undefined) child.textContent = originals[id];
-        }
-      } else if (child.nodeType === 1) walk(child);
+/** Content script: toggle word-level diff highlights on changed nodes. */
+function toggleHighlights(on) {
+  const STYLE_ID = "scrubcentral-highlight-style";
+  let style = document.getElementById(STYLE_ID);
+
+  // Word-level diff using LCS — inline so it's available in the content script context
+  function wordDiff(oldText, newText) {
+    const oldWords = oldText.split(/(\s+)/);
+    const newWords = newText.split(/(\s+)/);
+    const m = oldWords.length,
+      n = newWords.length;
+    const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] =
+          oldWords[i - 1] === newWords[j - 1]
+            ? dp[i - 1][j - 1] + 1
+            : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+    const ops = [];
+    let i = m,
+      j = n;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && oldWords[i - 1] === newWords[j - 1]) {
+        ops.push({ type: "eq", text: oldWords[i - 1] });
+        i--;
+        j--;
+      } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+        ops.push({ type: "ins", text: newWords[j - 1] });
+        j--;
+      } else {
+        ops.push({ type: "del", text: oldWords[i - 1] });
+        i--;
+      }
+    }
+    ops.reverse();
+    const esc = (s) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return ops
+      .map((op) => {
+        if (op.type === "eq") return esc(op.text);
+        if (op.type === "ins")
+          return `<span class="scrubcentral-hi">${esc(op.text)}</span>`;
+        return `<span class="scrubcentral-del">${esc(op.text)}</span>`;
+      })
+      .join("");
+  }
+
+  if (on) {
+    if (!style) {
+      style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent =
+        ".scrubcentral-hi { background-color: #fef9c3 !important; border-radius: 2px; padding: 0 1px; }" +
+        ".scrubcentral-del { background-color: #fee2e2 !important; text-decoration: line-through; border-radius: 2px; padding: 0 1px; font-size: 0.85em; opacity: 0.7; }";
+      document.head.appendChild(style);
+    }
+    for (const span of document.querySelectorAll("span.scrubcentral-changed")) {
+      if (span.dataset.scrubcentralDiffed) continue;
+      const original = (span.dataset.scrubcentralOriginal || "").trim();
+      const transformed = span.textContent.trim();
+      if (original === transformed) continue;
+      const leading = (span.textContent.match(/^\s*/) || [""])[0];
+      const trailing = (span.textContent.match(/\s*$/) || [""])[0];
+      span.dataset.scrubcentralPlain = span.textContent;
+      span.innerHTML = leading + wordDiff(original, transformed) + trailing;
+      span.dataset.scrubcentralDiffed = "1";
+    }
+  } else {
+    if (style) style.remove();
+    for (const span of document.querySelectorAll(
+      "span.scrubcentral-changed[data-scrubcentral-diffed]",
+    )) {
+      span.textContent = span.dataset.scrubcentralPlain;
+      delete span.dataset.scrubcentralDiffed;
+      delete span.dataset.scrubcentralPlain;
     }
   }
-  walk(document.documentElement);
+}
+
+/** Content script: undo transformation. Unwraps spans back to original text nodes. */
+function restoreOriginalNodes() {
+  const style = document.getElementById("scrubcentral-highlight-style");
+  if (style) style.remove();
+  for (const span of document.querySelectorAll("span.scrubcentral-changed")) {
+    const textNode = document.createTextNode(
+      span.dataset.scrubcentralOriginal || span.textContent,
+    );
+    span.parentNode.replaceChild(textNode, span);
+  }
   delete window.__scrubcentralOriginals;
 }
 
@@ -174,23 +277,18 @@ transformBtn.addEventListener("click", async () => {
   setLoading(true);
 
   try {
-    // 1. Grab original HTML + extract text nodes in parallel
-    let originalHtml, textNodes;
+    // 1. Extract text nodes from the live DOM
+    let textNodes;
     try {
-      const [htmlResult, extractResult] = await Promise.all([
-        chrome.scripting.executeScript({
-          target: { tabId: currentTabId },
-          func: () => document.documentElement.outerHTML,
-        }),
-        chrome.scripting.executeScript({
-          target: { tabId: currentTabId },
-          func: extractTextNodesFromDOM,
-        }),
-      ]);
-      originalHtml = htmlResult?.[0]?.result;
+      const extractResult = await chrome.scripting.executeScript({
+        target: { tabId: currentTabId },
+        func: extractTextNodesFromDOM,
+      });
       textNodes = extractResult?.[0]?.result;
     } catch (scriptErr) {
-      showError("Cannot access this page. Try refreshing or navigate to a CPF page.");
+      showError(
+        "Cannot access this page. Try refreshing or navigate to a CPF page.",
+      );
       setLoading(false);
       return;
     }
@@ -232,24 +330,6 @@ transformBtn.addEventListener("click", async () => {
       args: [nodeMap],
     });
 
-    // 4. Grab the now-transformed HTML and store both versions for the diff view
-    chrome.scripting.executeScript({
-      target: { tabId: currentTabId },
-      func: () => document.documentElement.outerHTML,
-    }).then(([transformedResult]) => {
-      if (!transformedResult?.result || !originalHtml) return;
-      return fetch(`${API_BASE_URL}/api/store-result`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          originalHtml: originalHtml,
-          transformedHtml: transformedResult.result,
-        }),
-      });
-    }).then(r => r?.json()).then(d => {
-      if (d?.resultId) lastResultId = d.resultId;
-    }).catch(() => {});
-
     showSuccess(data.nodes.length);
   } catch (err) {
     showError(err.message || "Network error — is the dev server running?");
@@ -258,12 +338,24 @@ transformBtn.addEventListener("click", async () => {
   }
 });
 
-// View changes in new tab
-viewDiffBtn.addEventListener("click", () => {
-  if (!lastResultId) return;
-  const params = new URLSearchParams({ id: lastResultId, url: currentUrl, mode });
-  if (mode === "simple") params.set("readingLevel", readingLevelSelect.value);
-  chrome.tabs.create({ url: `${API_BASE_URL}/result?${params.toString()}` });
+// Toggle highlights on changed text
+viewDiffBtn.addEventListener("click", async () => {
+  highlightsOn = !highlightsOn;
+  viewDiffBtn.querySelector(".btn-label").textContent = highlightsOn
+    ? "Hide changes"
+    : "Show changes";
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: currentTabId },
+      func: toggleHighlights,
+      args: [highlightsOn],
+    });
+  } catch {}
+});
+
+// Open original page in a new tab
+openOriginalBtn.addEventListener("click", () => {
+  if (currentUrl) chrome.tabs.create({ url: currentUrl });
 });
 
 // Undo
@@ -278,5 +370,6 @@ undoBtn.addEventListener("click", async () => {
   }
   successView.classList.remove("visible");
   formView.style.display = "flex";
-  lastResultId = null;
+  highlightsOn = false;
+  viewDiffBtn.querySelector(".btn-label").textContent = "Show changes";
 });
