@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ScrubCentral",
   "version": "1.0.0",
-  "description": "Transform CPF pages for simplified reading or LLM consumption",
+  "description": "Transform Singapore Government pages for simplified reading or LLM consumption",
   "permissions": ["activeTab", "storage", "scripting"],
   "action": {
     "default_popup": "popup.html",
