@@ -26,7 +26,7 @@ app.post("/api/transform", async (c) => {
     url: string;
     html?: string;
     mode: "simple" | "llm";
-    readingLevel?: "primary" | "secondary" | "adult";
+    readingLevel?: "basic" | "standard" | "detailed";
     customInstruction?: string;
   }>();
 
@@ -174,7 +174,7 @@ app.post("/api/transform-nodes", async (c) => {
     url: string;
     textNodes: Array<{ id: number; text: string }>;
     mode: "simple" | "llm";
-    readingLevel?: "primary" | "secondary" | "adult";
+    readingLevel?: "basic" | "standard" | "detailed";
     customInstruction?: string;
   }>();
 

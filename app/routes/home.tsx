@@ -13,13 +13,13 @@ export function meta({}: Route.MetaArgs) {
 }
 
 type Mode = "simple" | "llm";
-type ReadingLevel = "primary" | "secondary" | "adult";
+type ReadingLevel = "basic" | "standard" | "detailed";
 
 export default function Home() {
   const navigate = useNavigate();
   const [url, setUrl] = useState("");
   const [mode, setMode] = useState<Mode>("simple");
-  const [readingLevel, setReadingLevel] = useState<ReadingLevel>("secondary");
+  const [readingLevel, setReadingLevel] = useState<ReadingLevel>("standard");
   const [customInstruction, setCustomInstruction] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +145,7 @@ export default function Home() {
                       : "bg-cpf-white text-cpf-text-secondary hover:bg-cpf-mint/50"
                   }`}
                 >
-                  Simple English
+                  Human-Optimised
                 </button>
                 <button
                   type="button"
@@ -156,7 +156,7 @@ export default function Home() {
                       : "bg-cpf-white text-cpf-text-secondary hover:bg-cpf-mint/50"
                   }`}
                 >
-                  LLM-Optimized
+                  LLM-Optimised
                 </button>
               </div>
             </div>
@@ -164,7 +164,7 @@ export default function Home() {
             {/* Reading Level */}
             <div className={`space-y-2 transition-opacity ${mode === "simple" ? "opacity-100" : "opacity-30 pointer-events-none"}`}>
               <label htmlFor="readingLevel" className="text-sm font-bold text-cpf-text">
-                Reading Level
+                Detail Level
               </label>
               <select
                 id="readingLevel"
@@ -178,9 +178,9 @@ export default function Home() {
                   backgroundPosition: "right 14px center",
                 }}
               >
-                <option value="primary">Primary (Age 7–12)</option>
-                <option value="secondary">Secondary (Age 13–16)</option>
-                <option value="adult">Adult (General)</option>
+                <option value="basic">Basic — everyday words</option>
+                <option value="standard">Standard — clear &amp; direct</option>
+                <option value="detailed">Detailed — keeps nuance</option>
               </select>
             </div>
           </div>
