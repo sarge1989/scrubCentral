@@ -118,40 +118,57 @@ export function reassembleHtml(
 }
 
 type Mode = "simple" | "llm";
-type ReadingLevel = "primary" | "secondary" | "adult";
+type ReadingLevel = "basic" | "standard" | "detailed";
 
-const CONTEXT_PREAMBLE = `The content is from a Singapore Government website. The audience is Singapore residents and citizens. Assume familiarity with Singapore-specific context: Singpass, NRIC, HDB, CPF, MediShield Life, WorkFare, Pioneer/Merdeka Generation, GovTech services, etc. Do not explain these terms unless the reading level demands it.`;
+const CONTEXT_PREAMBLE = `The content is from a Singapore Government website. The audience is Singapore residents and citizens. Assume familiarity with Singapore-specific context: Singpass, NRIC, HDB, CPF, MediShield Life, WorkFare, Pioneer/Merdeka Generation, GovTech services, etc. Do not explain these terms unless the detail level demands it.`;
+
+const FEW_SHOT_EXAMPLE = `
+Example — "standard" level:
+
+BEFORE: "Members who have reached the prevailing Payout Eligibility Age and who have a sufficient balance in their Retirement Account may be eligible to commence monthly payouts under the CPF LIFE scheme or the Retirement Sum Scheme, subject to the applicable terms and conditions as may be determined by the Board from time to time."
+
+AFTER: "Once you reach the Payout Eligibility Age, you can start getting monthly payouts from CPF LIFE or the Retirement Sum Scheme — as long as you have enough in your Retirement Account."
+`;
 
 function buildSystemPrompt(
   mode: Mode,
   readingLevel?: ReadingLevel,
   customInstruction?: string
 ): string {
-  let prompt: string;
+  const customPreamble = customInstruction
+    ? `\nYour primary focus for this rewrite: "${customInstruction}"\nApply this focus while following the rules below.\n`
+    : "";
 
   if (mode === "simple") {
     const levelDesc: Record<ReadingLevel, string> = {
-      primary:
-        "a primary school student (age 7-12). Use very simple words and short sentences. Explain technical government terms but keep Singapore-specific references (Singpass, HDB, CPF, etc.) as-is.",
-      secondary:
-        "a secondary school student (age 13-16). Use straightforward language. Briefly explain technical government terms.",
-      adult:
-        "a general adult audience. Use clear, plain English. Avoid jargon where possible.",
+      basic:
+        "Use very simple, everyday words and short sentences. Cut bureaucratic language entirely. If a sentence has multiple clauses, break it up. Drop hedging phrases like 'may be eligible to' — say what actually happens.",
+      standard:
+        "Use clear, direct language. Cut jargon, legalese, and filler. Turn passive voice into active. Replace bureaucratic phrasing with plain speech. If a condition is buried in a long sentence, pull it out and state it directly.",
+      detailed:
+        "Use plain English while preserving technical nuance. Simplify sentence structure and remove filler, but keep precise details and qualifications that matter.",
     };
-    const level = readingLevel || "adult";
-    prompt = `You are a text simplification engine. ${CONTEXT_PREAMBLE}
+    const level = readingLevel || "standard";
+    return `You are a text simplification engine that genuinely transforms government prose into clear, human language. ${CONTEXT_PREAMBLE}
+${customPreamble}
+Your job is NOT to lightly polish the English. Your job is to REWRITE the text so it sounds like a helpful person explaining it, not like a legal document.
 
-Rewrite the provided text for ${levelDesc[level]}
+${levelDesc[level]}
+
+${FEW_SHOT_EXAMPLE}
 
 Rules:
-- Preserve the original meaning completely
-- Keep it concise — do not add information that wasn't in the original
-- Maintain the same tone (informational, instructional, etc.)
-- Keep proper nouns, names, acronyms, and Singapore-specific terms unchanged
+- Rewrite substantially — the output should feel noticeably different from the input, not just slightly rephrased
+- Cut passive voice, hedging ("may be eligible"), and redundant qualifiers
+- Address the reader as "you" instead of "members" or "applicants" where natural
+- Preserve all factual content and meaning — do not drop conditions or requirements
+- Keep proper nouns, acronyms, and Singapore-specific terms unchanged
+- Do not add information that wasn't in the original
 - Do not add any commentary or explanation about what you changed`;
-  } else {
-    prompt = `You are a text optimization engine that rewrites content for consumption by large language models (LLMs). ${CONTEXT_PREAMBLE}
+  }
 
+  return `You are a text optimization engine that rewrites content for consumption by large language models (LLMs). ${CONTEXT_PREAMBLE}
+${customPreamble}
 Rules:
 - Make references explicit (replace pronouns with their referents where ambiguous)
 - Use unambiguous, precise language
@@ -161,13 +178,6 @@ Rules:
 - Keep all factual content intact
 - Do not add information that wasn't in the original
 - Do not add any commentary or explanation about what you changed`;
-  }
-
-  if (customInstruction) {
-    prompt += `\n\nAdditional instruction from the user: ${customInstruction}`;
-  }
-
-  return prompt;
 }
 
 /**
