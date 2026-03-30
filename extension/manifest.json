@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ScrubCentral",
-  "version": "1.0.1",
-  "description": "Transform CPF pages for simplified reading or LLM consumption",
+  "version": "1.0.2",
+  "description": "Transform government pages for simplified reading or LLM consumption",
   "permissions": ["activeTab", "scripting"],
   "action": {
     "default_popup": "popup.html",
